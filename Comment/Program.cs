@@ -26,18 +26,18 @@ namespace Comment
 			IEnumerable<string> linesForComment = ReadLinesForComment(itemsCommentPath);
 			IDictionary<string, string> descriptions = ReadDescriptions(descriptionFilePath);
 
-			bool somethingChanged;
+			bool somethingChanged = false;
 
 			if (string.IsNullOrEmpty(commentValue))
-				somethingChanged = RemoveComments(linesForComment, descriptions);
+				RemoveComments(linesForComment, descriptions, ref somethingChanged);
 			else
-				somethingChanged = ReplaceDescriptions(linesForComment, commentValue, descriptions);
+				ReplaceDescriptions(linesForComment, commentValue, descriptions, ref somethingChanged);
 
 			if (somethingChanged)
 				SaveDescriptions(descriptions, descriptionFilePath);
 		}
 
-		private static void SaveDescriptions(ICollection<KeyValuePair<string, string>> descriptions, string descriptionFilePath)
+		private static void SaveDescriptions(IDictionary<string, string> descriptions, string descriptionFilePath)
 		{
 			if (descriptions.Count == 0)
 			{
@@ -51,7 +51,7 @@ namespace Comment
 			{
 				foreach (KeyValuePair<string, string> item in descriptions)
 				{
-					string pastePattern = item.Key.Contains(' ') ? "\"{0}\" {1}" : "{0} {1}";
+					string pastePattern = item.Key.IndexOf(' ') > 0 ? "\"{0}\" {1}" : "{0} {1}";
 					writer.WriteLine(pastePattern, item.Key, item.Value);
 				}
 			}
@@ -71,10 +71,8 @@ namespace Comment
 			File.SetAttributes(descriptionFilePath, fileAttributes & ~FileAttributes.Hidden);
 		}
 
-		private static bool ReplaceDescriptions(IEnumerable<string> linesForComment, string commentValue, IDictionary<string, string> descriptions)
+		private static void ReplaceDescriptions(IEnumerable<string> linesForComment, string commentValue, IDictionary<string, string> descriptions, ref bool somethingChanged)
 		{
-			bool somethingChanged = false;
-
 			foreach (string line in linesForComment)
 			{
 				string description;
@@ -90,22 +88,16 @@ namespace Comment
 
 				descriptions.Add(line, commentValue);
 				somethingChanged = true;
-
 			}
-			return somethingChanged;
 		}
 
-		private static bool RemoveComments(IEnumerable<string> linesForComment, IDictionary<string, string> descriptions)
+		private static void RemoveComments(IEnumerable<string> linesForComment, IDictionary<string, string> descriptions, ref bool somethingChanged)
 		{
-			bool somethingChanged = false;
-
 			foreach (string line in linesForComment)
 			{
 				descriptions.Remove(line);
 				somethingChanged = true;
 			}
-
-			return somethingChanged;
 		}
 
 		private static IDictionary<string, string> ReadDescriptions(string descriptionsPath)
@@ -118,16 +110,19 @@ namespace Comment
 
 			IEnumerable<string> readedDescriptions = File.ReadAllLines(descriptionsPath, Encoding.Default);
 
-			var parsed = readedDescriptions.Select(ParseDescriptionLine).ToDictionary(el => el.Key, el => el.Value);
+			var parsed = readedDescriptions
+				.Select(ParseDescriptionLine)
+				.GroupBy(el => el.Key, el => el.Value)
+				.ToDictionary(el => el.Key, el => el.First());
 			return new SortedDictionary<string, string>(parsed);
 		}
 
 		private static IEnumerable<string> ReadLinesForComment(string filePath)
 		{
 			if (!File.Exists(filePath))
-				return new List<string>();
+				return Enumerable.Empty<string>();
 
-			IEnumerable<string> readedLines = File.ReadAllLines(filePath);
+			var readedLines = File.ReadAllLines(filePath, Encoding.Default);
 			return readedLines.Select(line => line.TrimEnd('\\')).ToList();
 		}
 
