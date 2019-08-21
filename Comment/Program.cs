@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Comment
@@ -34,7 +35,10 @@ namespace Comment
 				ReplaceDescriptions(linesForComment, commentValue, descriptions, ref somethingChanged);
 
 			if (somethingChanged)
+			{
 				SaveDescriptions(descriptions, descriptionFilePath);
+				SendUpdateTabMessage();
+			}
 		}
 
 		private static void SaveDescriptions(IDictionary<string, string> descriptions, string descriptionFilePath)
@@ -146,6 +150,27 @@ namespace Comment
 				value = line.Substring(keyEndIndex + 1);
 			}
 			return new KeyValuePair<string, string>(key, value);
+		}
+
+		[DllImport("user32.dll", SetLastError = true)]
+		private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+		[DllImport("user32.dll", CharSet = CharSet.Auto)]
+		private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, int wParam, [MarshalAs(UnmanagedType.LPWStr)] string lParam);
+
+		private static void SendUpdateTabMessage()
+		{
+			const int WM_USER = 0x0400;
+			const int wm_InvokeMenuCommand = WM_USER + 51;
+			const int cm_SwitchHidSys = 2011;
+			const string totalCommanderClassName = "TTOTAL_CMD";
+
+			var totalCommanderWindow = FindWindow(totalCommanderClassName, null);
+			if (totalCommanderWindow != IntPtr.Zero)
+			{
+				SendMessage(totalCommanderWindow, wm_InvokeMenuCommand, cm_SwitchHidSys, null);
+				SendMessage(totalCommanderWindow, wm_InvokeMenuCommand, cm_SwitchHidSys, null);
+			}
 		}
 	}
 }
